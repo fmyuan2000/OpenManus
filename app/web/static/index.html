@@ -60,6 +60,90 @@
 
       let sessionId = null;
 
+      // Realtime voice input (browser speech recognition).
+      // Note: This uses the Web Speech API (SpeechRecognition/webkitSpeechRecognition),
+      // which is supported in Chromium-based browsers.
+      const voiceBtn = document.createElement("button");
+      voiceBtn.id = "voice";
+      voiceBtn.type = "button";
+      voiceBtn.textContent = "语音输入";
+      const statusSpan = document.createElement("span");
+      statusSpan.id = "voiceStatus";
+      statusSpan.style.marginLeft = "8px";
+      statusSpan.style.color = "#666";
+      statusSpan.textContent = "";
+      document.getElementById("row").appendChild(voiceBtn);
+      document.getElementById("row").appendChild(statusSpan);
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let recognition = null;
+      let isListening = false;
+      let finalTranscript = "";
+
+      function setVoiceStatus(s) {
+        statusSpan.textContent = s || "";
+      }
+
+      function updateVoiceButton() {
+        voiceBtn.textContent = isListening ? "停止语音" : "语音输入";
+      }
+
+      function setupRecognition() {
+        if (!SpeechRecognition) return;
+        recognition = new SpeechRecognition();
+        recognition.lang = "zh-CN";
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+          isListening = true;
+          updateVoiceButton();
+          setVoiceStatus("正在听...");
+        };
+        recognition.onerror = (e) => {
+          setVoiceStatus("语音错误: " + (e && e.error ? e.error : "unknown"));
+          isListening = false;
+          updateVoiceButton();
+        };
+        recognition.onend = () => {
+          isListening = false;
+          updateVoiceButton();
+          setVoiceStatus("");
+        };
+        recognition.onresult = (event) => {
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const res = event.results[i];
+            const text = res && res[0] ? res[0].transcript : "";
+            if (res.isFinal) finalTranscript += text;
+            else interim += text;
+          }
+          input.value = (finalTranscript + interim).trimStart();
+        };
+      }
+
+      setupRecognition();
+      if (!SpeechRecognition) {
+        voiceBtn.disabled = true;
+        setVoiceStatus("当前浏览器不支持语音识别");
+      }
+
+      voiceBtn.addEventListener("click", () => {
+        if (!recognition) return;
+        if (!isListening) {
+          // Start a new dictation segment; keep existing input as prefix.
+          finalTranscript = (input.value || "").trim();
+          if (finalTranscript) finalTranscript += " ";
+          try {
+            recognition.start();
+          } catch (_) {
+            // Some browsers throw if start() is called twice quickly.
+          }
+        } else {
+          recognition.stop();
+        }
+      });
+
       async function ensureSession() {
         if (sessionId) return sessionId;
         const r = await fetch("/api/new", { method: "POST" });
