@@ -41,6 +41,18 @@ conda create -n open_manus python=3.12
 conda activate open_manus
 ```
 
+Windows（Miniforge）也可以直接用仓库内脚本一键初始化：
+
+```bat
+scripts\win_setup_open_manus.cmd
+```
+
+或打开一个已激活 `open_manus` 环境并切到项目目录的命令行：
+
+```bat
+scripts\win_open_manus_shell.cmd
+```
+
 2. 克隆仓库：
 
 ```bash
@@ -118,6 +130,22 @@ api_key = "sk-..."  # 替换为真实 API 密钥
 ```
 
 ## 快速启动
+
+### Web 对话（浏览器）
+
+启动 Web 服务：
+
+```bash
+python run_web.py
+```
+
+然后在浏览器打开：`http://127.0.0.1:8000/`
+
+Windows（Miniforge + conda `open_manus`）也可直接运行：
+
+```bat
+scripts\win_run_web.cmd
+```
 
 一行命令运行 OpenManus：
 

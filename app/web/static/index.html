@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenManus Web</title>
+    <style>
+      body { font-family: sans-serif; margin: 24px; }
+      #log { border: 1px solid #ddd; padding: 12px; height: 60vh; overflow: auto; }
+      .msg { margin: 8px 0; white-space: pre-wrap; }
+      .role { font-weight: 600; }
+      #row { display: flex; gap: 8px; margin-top: 12px; }
+      #input { flex: 1; padding: 8px; }
+      button { padding: 8px 12px; }
+      .msg pre { background: #f6f8fa; padding: 10px; overflow: auto; }
+      .msg code { background: #f6f8fa; padding: 2px 4px; }
+      .msg pre code { background: transparent; padding: 0; }
+    </style>
+  </head>
+  <body>
+    <h2>OpenManus Web Chat</h2>
+    <div id="log"></div>
+    <div id="row">
+      <input id="input" placeholder="Type a message..." />
+      <button id="send">Send</button>
+      <button id="reset">Reset</button>
+    </div>
+
+    <!-- Markdown rendering (sanitized). If your network blocks CDNs, vendor these under /static and update the src. -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+    <script>
+      const log = document.getElementById("log");
+      const input = document.getElementById("input");
+      const sendBtn = document.getElementById("send");
+      const resetBtn = document.getElementById("reset");
+
+      function add(role, text) {
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.innerHTML = `<span class="role">${escapeHtml(role)}:</span> ${renderMarkdown(text)}`;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function escapeHtml(s) {
+        return (s ?? "").toString()
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function renderMarkdown(text) {
+        const t = (text ?? "").toString();
+        // Fallback to plain text if markdown libs are unavailable.
+        if (!window.marked || !window.DOMPurify) return escapeHtml(t);
+        const html = window.marked.parse(t, { breaks: true, gfm: true });
+        return window.DOMPurify.sanitize(html);
+      }
+
+      let sessionId = null;
+
+      async function ensureSession() {
+        if (sessionId) return sessionId;
+        const r = await fetch("/api/new", { method: "POST" });
+        const j = await r.json();
+        sessionId = j.session_id;
+        return sessionId;
+      }
+
+      async function send() {
+        const text = input.value.trim();
+        if (!text) return;
+        input.value = "";
+        add("user", text);
+        const sid = await ensureSession();
+        const r = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sid, message: text }),
+        });
+        const j = await r.json();
+        add("assistant", j.reply || "");
+      }
+
+      async function reset() {
+        if (!sessionId) return;
+        const r = await fetch("/api/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+        const j = await r.json();
+        sessionId = j.session_id;
+        log.innerHTML = "";
+        add("system", "session reset");
+      }
+
+      sendBtn.addEventListener("click", send);
+      resetBtn.addEventListener("click", reset);
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          send();
+        }
+      });
+    </script>
+  </body>
+</html>
